@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.python-version
+data/
+checkpoints/
+runs/
+wandb/
+.mypy_cache/
+.pytest_cache/
+*.png
+!docs/**
