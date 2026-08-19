@@ -234,7 +234,7 @@ Same phases: learn `s,a → s'`, JEPA, CEM to a held-out target, abort on disagr
 On this machine, `python scripts/sanity_check.py` passed with:
 
 - `parking-v0`
-- action: `Box(-1, 1, (2,), float32)` (steering, acceleration)
+- action: `Box(-1, 1, (2,), float32)` (`action[0]` acceleration, `action[1]` steering)
 - obs dict: `observation`, `achieved_goal`, `desired_goal`, each `(6,)` (`x, y, vx, vy, cos_h, sin_h`)
 - info: `action`, `crashed`, `is_success`, `speed`
 - rgb frame: `300 x 600 x 3`
