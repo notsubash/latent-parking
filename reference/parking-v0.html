@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>parking-v0 · reference</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Reference ·
+      <a href="../lessons/0001-gym-loop.html">lesson 0001</a>
+    </nav>
+    <header>
+      <p class="kicker">Cheat sheet</p>
+      <h1>parking-v0</h1>
+      <p class="lede">Numbers to look up, not to memorize from a blog. Confirm against highway-env source if a claim would change a plot.</p>
+    </header>
+
+    <h2>Loop</h2>
+<pre><code>obs, info = env.reset(seed=…)
+obs, reward, terminated, truncated, info = env.step(action)
+# reset when terminated or truncated</code></pre>
+
+    <h2>Observation</h2>
+    <p>Type <code>KinematicsGoal</code>. Dict of three length-6 vectors, features in this order:</p>
+    <table>
+      <thead><tr><th>i</th><th>Feature</th><th>Scale</th><th>Stored value</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>x</code></td><td>100</td><td>meters / 100</td></tr>
+        <tr><td>1</td><td><code>y</code></td><td>100</td><td>meters / 100</td></tr>
+        <tr><td>2</td><td><code>vx</code></td><td>5</td><td>(m/s) / 5</td></tr>
+        <tr><td>3</td><td><code>vy</code></td><td>5</td><td>(m/s) / 5</td></tr>
+        <tr><td>4</td><td><code>cos_h</code></td><td>1</td><td>heading unit-x</td></tr>
+        <tr><td>5</td><td><code>sin_h</code></td><td>1</td><td>heading unit-y</td></tr>
+      </tbody>
+    </table>
+    <p><code>observation == achieved_goal</code> (ego). <code>desired_goal</code> is the stall landmark. Heading 0 faces +x.</p>
+
+    <h2>Action</h2>
+    <p><code>Box(-1, 1, (2,), float32)</code> then mapped:</p>
+    <table>
+      <thead><tr><th>Index</th><th>Name</th><th>Physical</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>acceleration</td><td>[-5, 5] m/s²</td></tr>
+        <tr><td>1</td><td>steering</td><td>[−π/4, π/4] rad</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Time</h2>
+    <table>
+      <thead><tr><th>Config</th><th>Default</th></tr></thead>
+      <tbody>
+        <tr><td><code>policy_frequency</code></td><td>5 Hz (0.2 s per action)</td></tr>
+        <tr><td><code>simulation_frequency</code></td><td>15 Hz (3 physics substeps)</td></tr>
+        <tr><td><code>duration</code></td><td>100 s → 500 actions if no crash/success</td></tr>
+      </tbody>
+    </table>
+    <p><code>terminated</code>: crash or success. <code>truncated</code>: <code>time >= duration</code>.</p>
+
+    <h2>Reward (needed later, not for collecting)</h2>
+    <p>Weighted p-norm, <code>p=0.5</code>, weights <code>[1, 0.3, 0, 0, 0.02, 0.02]</code> on <code>|achieved − desired|</code>, then negated. Collision adds <code>−5</code>. Success if that proximity reward <code>&gt; −0.12</code>.</p>
+
+    <h2>Variants</h2>
+    <p><code>parking-v0</code> empty lot. <code>parking-parked-v0</code> adds 10 parked cars. Stay empty until MPC works.</p>
+
+    <p class="source">
+      Sources:
+      <a href="https://highway-env.farama.org/environments/parking/">docs</a>,
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/parking_env.py">parking_env.py</a>,
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/common/action.py">action.py</a>.
+    </p>
+    <footer>Reference · latent parking</footer>
+  </article>
+</body>
+</html>

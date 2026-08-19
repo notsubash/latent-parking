@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>0001 · One timestep in parking-v0</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Phase 0 ·
+      <a href="../reference/parking-v0.html">parking-v0 reference</a> ·
+      <a href="../MISSION.md">mission</a>
+    </nav>
+    <header>
+      <p class="kicker">Lesson 0001 · Gym loop</p>
+      <h1>One timestep in parking-v0</h1>
+      <p class="lede">You cannot train a world model, run CEM, or distrust a rollout until you can name every field in a single transition. This lesson is that naming.</p>
+    </header>
+
+    <div class="mission">
+      <p>Mission hook: later you will imagine a few seconds ahead and abort when imagination disagrees with reality. The unit of imagination is the same unit you save today: <code>(obs, action, next_obs)</code>.</p>
+    </div>
+
+    <h2>The loop</h2>
+    <p>
+      Reinforcement learning’s two characters are the <em>agent</em> and the <em>environment</em>.
+      At every step the agent sees an observation, picks an action, and the environment returns a new observation plus a reward.
+      <a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html">Spinning Up, Part 1</a>
+      calls a sequence of those exchanges a <em>trajectory</em>.
+    </p>
+    <p>
+      Gymnasium is the API for that loop.
+      <a href="https://gymnasium.farama.org/introduction/basic_usage/">Basic Usage</a>
+      is four calls: <code>make</code>, <code>reset</code>, <code>step</code>, <code>close</code>.
+      You already ran <code>scripts/sanity_check.py</code>. Here is the same loop with the names we will keep:
+    </p>
+<pre><code>obs, info = env.reset(seed=0)
+action = env.action_space.sample()
+next_obs, reward, terminated, truncated, info = env.step(action)
+# save (obs, action, next_obs, reward, terminated, truncated)
+if terminated or truncated:
+    obs, info = env.reset()
+else:
+    obs = next_obs</code></pre>
+    <p>
+      Always <code>reset</code> before the first <code>step</code>.
+      After <code>terminated or truncated</code>, <code>step</code> is undefined until you <code>reset</code> again
+      (<a href="https://gymnasium.farama.org/api/env/">Env.step</a>).
+    </p>
+
+    <h2>What parking-v0 actually returns</h2>
+    <p>
+      Default observation type is <code>KinematicsGoal</code>
+      (<a href="https://highway-env.farama.org/environments/parking/">parking docs</a>).
+      <code>reset</code> and <code>step</code> give a dict with three arrays of length 6:
+    </p>
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>observation</code></td>
+          <td>Ego vehicle: <code>x, y, vx, vy, cos_h, sin_h</code>, each divided by a scale.</td>
+        </tr>
+        <tr>
+          <td><code>achieved_goal</code></td>
+          <td>The same six numbers. Reward compares this to the desired goal.</td>
+        </tr>
+        <tr>
+          <td><code>desired_goal</code></td>
+          <td>The parking spot as the same six features (spot velocity is zero).</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      That dict shape is the <em>GoalEnv</em> contract reproduced in
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/parking_env.py">parking_env.py</a>:
+      the agent is told both “where I am” and “where I should be.”
+    </p>
+
+    <div class="callout">
+      <p><strong>Scale trap.</strong> Config says <code>normalize: False</code>, but
+      <code>KinematicsGoalObservation.observe()</code> still does <code>values / scales</code>
+      with <code>scales = [100, 100, 5, 5, 1, 1]</code>.
+      If the array’s first entry is <code>0.20</code>, the car is at <code>x = 20</code> meters, not 0.20.
+      Heading is stored as a unit vector <code>(cos_h, sin_h)</code>, not an angle, so the planner can interpolate heading without wrapping 0/2π.
+      Source: <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/common/observation.py">observation.py</a>.</p>
+    </div>
+
+    <h3>Decode one number</h3>
+    <div id="decode-x"></div>
+
+    <h2>Actions</h2>
+    <p>
+      Action space is <code>Box(-1, 1, (2,), float32)</code>.
+      Those bounds are <em>normalized commands</em>, not meters.
+      highway-env maps them after clipping
+      (<a href="https://highway-env.farama.org/actions/">Actions</a>,
+      <code>ContinuousAction.get_action</code>):
+    </p>
+    <table>
+      <thead>
+        <tr><th>Index</th><th>Command</th><th>Mapped range</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>action[0]</code></td><td>acceleration (throttle)</td><td>[-5, 5] m/s²</td></tr>
+        <tr><td><code>action[1]</code></td><td>steering</td><td>[-π/4, π/4] rad (±45°)</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <p><strong>Order trap.</strong> It is <code>[acceleration, steering]</code>, not the reverse.
+      If you later plug CEM into the wrong index, the car will look “steerable” while you are actually flooring the throttle. Believe the source, not a comment.</p>
+    </div>
+
+    <h2>When an episode ends</h2>
+    <p>
+      Gymnasium split the old <code>done</code> flag on purpose
+      (<a href="https://gymnasium.farama.org/api/env/">step API, v0.26</a>):
+    </p>
+    <table>
+      <thead>
+        <tr><th>Flag</th><th>In this env</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>terminated</code></td>
+          <td>Crash into a wall (or later, a parked car), or success: weighted distance to the spot is small enough.</td>
+        </tr>
+        <tr>
+          <td><code>truncated</code></td>
+          <td>Simulated time hits <code>duration = 100</code> seconds.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Each <code>step</code> advances time by <code>1 / policy_frequency</code>.
+      Default <code>policy_frequency</code> is 5 Hz, so one action lasts 0.2 s, and a full timeout is
+      <code>100 × 5 = 500</code> actions
+      (<a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/common/abstract.py">AbstractEnv.step</a>).
+      Physics still runs at 15 Hz: three internal bicycle-model steps per action you send.
+    </p>
+    <p>
+      Random actions usually hit a wall long before 500 steps. That is expected. You still save those transitions: a world model must see crashes too, or Phase 6’s distrust signal will be fiction.
+    </p>
+
+    <h2>Check yourself</h2>
+    <p>Retrieve from memory. Same-length choices, so length is not a hint.</p>
+    <div id="quiz"></div>
+
+    <h2>Do this now</h2>
+    <p>The Phase 0 pass is a dataset on disk, not a feeling of understanding. From the repo root:</p>
+<pre><code>source .venv/Scripts/activate
+python scripts/collect_random.py</code></pre>
+    <p>
+      That script is the loop above, written to <code>data/random_parking.npz</code> (gitignored).
+      After it prints counts, you should be able to say out loud: observation keys, action bounds and order, and max episode length.
+    </p>
+    <p>
+      Optional, on your machine: open a window with <code>render_mode="human"</code> as in the README, so the lot is not just numbers.
+    </p>
+
+    <h2>Primary source</h2>
+    <p class="source">
+      Read <a href="https://gymnasium.farama.org/introduction/basic_usage/">Gymnasium: Basic Usage</a> once, slowly.
+      Then skim Spinning Up Part 1 through <em>Trajectories</em> only
+      (<a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html">link</a>).
+      Skip value functions and Bellman equations until Phase 1. Sutton &amp; Barto ch. 1–3 wait until this loop is boring.
+    </p>
+
+    <p>
+      Keep <a href="../reference/parking-v0.html">the parking-v0 cheat sheet</a> next to the lesson.
+      Next lesson, after you have the npz, we will look at what random driving actually does (episode lengths, crash rate, how far <code>achieved_goal</code> sits from <code>desired_goal</code>).
+    </p>
+
+    <div class="ask">
+      <p>If any of this is fuzzy, ask here. I am your teacher for this repo. Typical useful questions: “why divide by 100?”, “why both terminated and truncated?”, “did my npz look sane?”</p>
+    </div>
+
+    <footer>Lesson 0001 · latent parking · Phase 0</footer>
+  </article>
+  <script type="module">
+    import { mountQuiz, mountNumeric } from "../assets/quiz.js";
+
+    mountNumeric(document.getElementById("decode-x"), {
+      prompt: "Scaled observation x is 0.20. The scale for x is 100. What is x in meters?",
+      answer: 20,
+      tolerance: 0.01,
+      hint: "Multiply the stored value by its scale.",
+      explain: "0.20 × 100 = 20 m. You will need this every time you plot a trajectory from the npz.",
+    });
+
+    mountQuiz(document.getElementById("quiz"), [
+      {
+        prompt: "In Gymnasium ≥ 0.26, env.step(action) returns:",
+        choices: ["a 5-tuple result", "a 4-tuple result", "a 3-tuple result", "a 6-tuple result"],
+        answer: "a 5-tuple result",
+        explain: "observation, reward, terminated, truncated, info. The old 4-tuple used a single done flag.",
+      },
+      {
+        prompt: "In parking-v0, action[0] is:",
+        choices: ["index 0 is throttle", "index 0 is steering"],
+        answer: "index 0 is throttle",
+        explain: "ContinuousAction maps action[0] to acceleration and action[1] to steering.",
+      },
+      {
+        prompt: "The car hits a wall. That is a:",
+        choices: ["task ending (crash)", "time ending (limit)"],
+        answer: "task ending (crash)",
+        explain: "Crash and success set terminated. Hitting duration=100 s sets truncated.",
+      },
+      {
+        prompt: "Default timeout is:",
+        choices: ["100 simulated seconds", "500 simulated seconds"],
+        answer: "100 simulated seconds",
+        explain: "duration is 100 seconds. 500 is the maximum number of actions (100 s × 5 Hz), not the clock.",
+      },
+      {
+        prompt: "In default parking-v0, observation and achieved_goal are:",
+        choices: ["same scaled ego state", "only the parking pose"],
+        answer: "same scaled ego state",
+        explain: "Both are ego kinematics / scales. desired_goal is the spot.",
+      },
+    ]);
+  </script>
+</body>
+</html>
