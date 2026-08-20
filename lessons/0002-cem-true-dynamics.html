@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>0002 · CEM with true dynamics</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Phase 1 ·
+      <a href="./0001-gym-loop.html">lesson 0001</a> ·
+      <a href="../reference/cem-mpc.html">CEM-MPC reference</a> ·
+      <a href="../MISSION.md">mission</a>
+    </nav>
+    <header>
+      <p class="kicker">Lesson 0002 · Planning</p>
+      <h1>Imagine with the real env</h1>
+      <p class="lede">If CEM cannot swing up Pendulum while it is allowed to cheat with <code>env.step</code>, later latent plots are not a world-model bug. They are a planner bug.</p>
+    </header>
+
+    <div class="mission">
+      <p>Mission hook: later you will abort when imagination disagrees with reality. Today imagination <em>is</em> reality, copied and rewound. The only thing that can fail is the search over action sequences.</p>
+    </div>
+
+    <h2>A model, then a plan</h2>
+    <p>
+      <a href="http://incompleteideas.net/book/the-book-2nd.html">Sutton &amp; Barto, chapter 8</a>
+      call anything that predicts the next state and reward a <em>model</em>, and call
+      <em>planning</em> any computation that turns a model into a way of acting.
+      You already have a perfect sample model: <code>env.step</code>.
+      Phase 2 will replace that call with a network. The planner should not have to change.
+    </p>
+    <p>
+      The planner does not learn a policy network. At each real timestep it searches for a
+      short sequence of actions, sends the first one, and searches again. That loop is
+      <em>receding-horizon</em> model-predictive control: plan many steps, commit one.
+    </p>
+
+    <div class="horizon" aria-label="Receding horizon: imagine six actions, commit the first">
+      <div class="horizon-row">
+        <span class="lbl">imagine</span>
+        <span class="cell">a0</span>
+        <span class="cell">a1</span>
+        <span class="cell">a2</span>
+        <span class="cell">a3</span>
+        <span class="cell">a4</span>
+        <span class="cell">a5</span>
+      </div>
+      <div class="horizon-row">
+        <span class="lbl">commit</span>
+        <span class="cell commit">a0</span>
+        <span class="cell ghost">replan</span>
+        <span class="cell ghost">replan</span>
+        <span class="cell ghost">replan</span>
+        <span class="cell ghost">replan</span>
+        <span class="cell ghost">replan</span>
+      </div>
+    </div>
+
+    <p>
+      Open-loop would fire a0…a5 without looking again. Receding horizon is how the
+      parking assistant will steer: a new plan after every real observation, later
+      with a distrust gate on that same imagined suffix.
+    </p>
+
+    <h2>CEM in five lines</h2>
+    <p>
+      The search is the cross-entropy method on <em>action sequences</em>, not on network
+      weights.
+      <a href="https://arxiv.org/abs/2008.06389">Pinneri et al. 2020, Appendix A</a>
+      is the vanilla CEM-MPC loop we implement. Ignore iCEM (colored noise, elite memory)
+      until this version works.
+    </p>
+    <div class="algo">
+      <ol>
+        <li>Sample N sequences of length H from a Gaussian over actions.</li>
+        <li>Clip to the action box. Score each by rolling the model.</li>
+        <li>Keep the K cheapest sequences (the elites).</li>
+        <li>Refit mean and std to those elites. Repeat a few times.</li>
+        <li>Execute the first action of the best sequence. Shift the mean. Replan.</li>
+      </ol>
+    </div>
+    <p>
+      “Best sequence,” not “the mean”: the mean was never rolled out. Pinneri §3.3
+      notes that distinction. We take the elite that actually got the low cost.
+    </p>
+
+    <h3>Feel one iteration</h3>
+    <p>
+      Here the “action sequence” is a single number, and cost is <code>(x − 2)²</code>.
+      Same elite-refit as the pendulum script. Click until the green mean sits on the dashed min.
+    </p>
+    <div id="cem-demo"></div>
+
+    <h2>Pendulum-v1, then rewind</h2>
+    <p>
+      <a href="https://gymnasium.farama.org/environments/classic_control/pendulum/">Pendulum-v1</a>
+      is the warmup in PLAN.md: one torque in <code>[-2, 2]</code>, observation
+      <code>[cos θ, sin θ, θ̇]</code>, upright at <code>θ = 0</code>, 200-step truncation.
+      Reward is already a cost with a minus:
+      <code>−(θ² + 0.1 θ̇² + 0.001 τ²)</code>.
+      CEM minimizes the sum of <code>−reward</code> over the horizon.
+    </p>
+    <div class="callout">
+      <p><strong>Wrapper trap.</strong> <code>gym.make("Pendulum-v1")</code> wraps the physics in <code>TimeLimit(200)</code>.
+      Planning must call <code>env.unwrapped.step</code> after copying <code>env.unwrapped.state</code>.
+      If you plan with the wrapped <code>env.step</code>, imagined rollouts spend the real episode’s 200 steps
+      and the pendulum “dies” while you are only thinking.
+      After each candidate, put the state back. Never <code>reset</code> to score a plan: reset randomizes θ.</p>
+    </div>
+
+    <h2>Check yourself</h2>
+    <p>Retrieve from memory. Same-length choices, so length is not a hint.</p>
+    <div id="quiz"></div>
+
+    <h2>Do this now</h2>
+    <p>The Phase 1 Pendulum pass is a plot, not a feeling. From the repo root:</p>
+<pre><code>source .venv/Scripts/activate
+python scripts/cem.py
+python scripts/plan_pendulum.py</code></pre>
+    <p>
+      First command is a 1-D self-check. Second runs random, then CEM, and writes
+      <code>artifacts/pendulum_cem.png</code> (gitignored). You want CEM return much
+      better than random, and <code>|θ|</code> near 0 in the last 50 steps.
+    </p>
+    <p>
+      Parking is the same optimizer with a different cost and a harder clone.
+      Do not start that until this pendulum plot exists.
+    </p>
+
+    <h2>Primary source</h2>
+    <p class="source">
+      Read <a href="http://incompleteideas.net/book/RLbook2020.pdf">Sutton &amp; Barto, chapter 8, section 8.1 only</a>
+      (models, sample models, planning as model → policy). Stop before Dyna and MCTS.
+      Keep the
+      <a href="https://gymnasium.farama.org/environments/classic_control/pendulum/">Pendulum page</a>
+      open for the numbers.
+      Optional: Pinneri Appendix A if you want the same five lines in paper notation.
+    </p>
+
+    <p>
+      Cheat sheet: <a href="../reference/cem-mpc.html">CEM-MPC</a>.
+      Previous: <a href="./0001-gym-loop.html">the gym loop</a>.
+    </p>
+
+    <div class="ask">
+      <p>If any of this is fuzzy, ask here. Typical useful questions: “why rewind state?”, “why not execute the whole plan?”, “my return was still terrible, which hyperparameter first?”</p>
+    </div>
+
+    <footer>Lesson 0002 · latent parking · Phase 1</footer>
+  </article>
+  <script type="module">
+    import { mountQuiz } from "../assets/quiz.js";
+    import { mountCemDemo } from "../assets/cem.js";
+
+    mountCemDemo(document.getElementById("cem-demo"), {
+      prompt: "Cost is (x − 2)². Start with mean = 0. Each click samples, keeps elites, refits.",
+      target: 2,
+      initMean: 0,
+    });
+
+    mountQuiz(document.getElementById("quiz"), [
+      {
+        prompt: "After CEM proposes a horizon-H plan, the real env should:",
+        choices: ["send first action only", "send every planned step"],
+        answer: "send first action only",
+        explain: "Receding horizon: commit a0, then replan from the new real observation.",
+      },
+      {
+        prompt: "The Gaussian is refit using:",
+        choices: ["elite sequences only", "every sampled sequence"],
+        answer: "elite sequences only",
+        explain: "That is the cross-entropy step: the next samples concentrate on the cheap plans.",
+      },
+      {
+        prompt: "Scoring candidates with env.step is:",
+        choices: ["cheating on purpose", "training a world net"],
+        answer: "cheating on purpose",
+        explain: "True dynamics isolate planner bugs. A learned f(s, a) comes in Phase 2.",
+      },
+      {
+        prompt: "To score one candidate you must:",
+        choices: ["copy physics then step", "call reset then step"],
+        answer: "copy physics then step",
+        explain: "reset draws a new θ. Copy unwrapped.state, step the unwrapped env, restore.",
+      },
+      {
+        prompt: "Pendulum observation[0] is:",
+        choices: ["cos of the angle", "raw angle in radians"],
+        answer: "cos of the angle",
+        explain: "obs = [cos θ, sin θ, θ̇]. Upright is θ = 0, so obs ≈ [1, 0, 0].",
+      },
+    ]);
+  </script>
+</body>
+</html>

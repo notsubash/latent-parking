@@ -242,6 +242,75 @@ footer {
   margin-top: 2.5rem;
 }
 
+.horizon {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 1.3rem;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+}
+
+.horizon-row {
+  display: grid;
+  grid-template-columns: 5.2rem repeat(6, 1fr);
+  gap: 0.28rem;
+  align-items: stretch;
+}
+
+.horizon .lbl {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.horizon .cell {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  text-align: center;
+  padding: 0.45rem 0.2rem;
+}
+
+.horizon .cell.commit {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.horizon .cell.ghost {
+  color: var(--faint);
+  border-style: dashed;
+}
+
+.cem-demo .cem-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  margin: 0.4rem 0 0.7rem;
+}
+
+.cem-toolbar {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.algo {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 0.85rem 1rem;
+  margin: 0.9rem 0 1.2rem;
+}
+
+.algo ol {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
 @media print {
   body { background: #fff; }
   .page { padding: 0; max-width: none; }

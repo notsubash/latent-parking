@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CEM-MPC · reference</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Reference ·
+      <a href="../lessons/0002-cem-true-dynamics.html">lesson 0002</a> ·
+      <a href="./parking-v0.html">parking-v0</a>
+    </nav>
+    <header>
+      <p class="kicker">Cheat sheet</p>
+      <h1>CEM-MPC</h1>
+      <p class="lede">The planner you will keep when the model stops being <code>env.step</code>. Vanilla only: no colored noise, no elite memory.</p>
+    </header>
+
+    <h2>Loop</h2>
+<pre><code>copy model state
+for each of N action sequences of length H:
+    restore, step H times, cost = sum of step costs
+keep K lowest-cost sequences (elites)
+mean, std ← elite statistics
+execute best_sequence[0]
+mean ← shift left, repeat last action
+replan from the new real observation</code></pre>
+
+    <h2>Symbols</h2>
+    <table>
+      <thead><tr><th>Name</th><th>In this repo</th></tr></thead>
+      <tbody>
+        <tr><td>H, horizon</td><td>Pendulum: 20 steps (1 s at dt=0.05). Parking: 8–15.</td></tr>
+        <tr><td>N, samples</td><td>48 sequences per CEM iteration</td></tr>
+        <tr><td>K, elites</td><td>10 (must be ≥ 2)</td></tr>
+        <tr><td>iterations</td><td>5 refits per real step</td></tr>
+        <tr><td>init std</td><td>1.0; reset every real step so search does not freeze</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Pendulum-v1</h2>
+    <table>
+      <thead><tr><th></th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Action</td><td><code>Box(-2, 2, (1,))</code> torque</td></tr>
+        <tr><td>Obs</td><td><code>[cos θ, sin θ, θ̇]</code>, upright θ = 0</td></tr>
+        <tr><td>Cost</td><td><code>θ² + 0.1 θ̇² + 0.001 τ²</code> (= <code>−reward</code>)</td></tr>
+        <tr><td>Physics state</td><td><code>env.unwrapped.state = [θ, θ̇]</code></td></tr>
+        <tr><td>Plan with</td><td><code>unwrapped.step</code>, then restore state</td></tr>
+        <tr><td>Act with</td><td>wrapped <code>env.step</code> (TimeLimit 200)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Do not</h2>
+    <ul>
+      <li>Call <code>reset</code> to evaluate a candidate (new random θ).</li>
+      <li>Plan through the TimeLimit wrapper (imagination spends the real budget).</li>
+      <li>Execute the unused Gaussian mean; execute a sequence you scored.</li>
+      <li>Start parking until <code>artifacts/pendulum_cem.png</code> exists and beats random.</li>
+    </ul>
+
+    <p class="source">
+      Sources:
+      <a href="http://incompleteideas.net/book/RLbook2020.pdf">Sutton &amp; Barto §8.1</a>,
+      <a href="https://arxiv.org/abs/2008.06389">Pinneri et al. 2020 Appendix A</a>,
+      <a href="https://gymnasium.farama.org/environments/classic_control/pendulum/">Pendulum-v1</a>.
+    </p>
+    <footer>Reference · latent parking</footer>
+  </article>
+</body>
+</html>
