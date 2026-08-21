@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>0003 · Parks, not only crashes</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Phase 2 ·
+      <a href="./0002-cem-true-dynamics.html">lesson 0002</a> ·
+      <a href="../reference/learned-dynamics.html">learned dynamics</a> ·
+      <a href="../MISSION.md">mission</a>
+    </nav>
+    <header>
+      <p class="kicker">Lesson 0003 · World model data</p>
+      <h1>Parks, not only crashes</h1>
+      <p class="lede">Phase 2 trains <code>f(s, a) → s′</code> on kinematics. If the dataset never contains a park, the network cannot imagine one, and CEM will query states <code>f</code> has never seen.</p>
+    </header>
+
+    <div class="mission">
+      <p>Mission hook: later you abort when imagination disagrees with reality. That only works if imagination was trained on the kind of driving the planner actually does, including slow, headed, successful parks.</p>
+    </div>
+
+    <h2>What is predicted</h2>
+    <p>
+      <a href="https://arxiv.org/abs/1708.02596">Nagabandi et al., 2018</a>
+      write the learned model as
+      <code>ŝ<sub>t+1</sub> = s<sub>t</sub> + f̂(s<sub>t</sub>, a<sub>t</sub>)</code>:
+      next kinematics, not the scalar reward, not pixels.
+      PLAN.md is the same contract without the delta trick:
+      <code>f(s, a) → s′</code>, MSE on the six-vector
+      <code>x, y, vx, vy, cos_h, sin_h</code>.
+    </p>
+    <p>
+      Planning then reuses lesson 0002: CEM rolls <code>f</code> for a short horizon and executes the first action.
+      <a href="https://tdmpc2.com">TD-MPC2</a> does that in a latent <code>z</code> and adds value heads.
+      Skip those heads. Ask only: what is predicted, and how is a plan scored.
+    </p>
+
+    <h2>The identity bar</h2>
+    <p>
+      Phase 2 pass #1: one-step prediction must beat <em>predict no change</em>,
+      <code>s′ = s</code>, which ignores the action.
+      That is a real baseline, not a joke. On a 0.2 s step the car barely moves, so identity MSE looks small
+      until you look at <code>vx, vy</code>.
+    </p>
+    <p>
+      Your <code>data/random_parking.npz</code> (8000 steps, 91 finished episodes) has
+      <strong>zero successes</strong>. Every completed episode crashed.
+      Identity on that file is overall MSE ≈ 0.0033 in <em>stored</em> coordinates
+      (x is meters/100). A later MLP must beat that number in the same space.
+    </p>
+    <div class="callout">
+      <p><strong>Distribution trap.</strong>
+      Nagabandi §IV-D mix random data with on-policy MPC rollouts because the planner visits a different
+      <code>(s, a)</code> distribution than noise. Random parking never reverses into a stall with the
+      right heading. Train only on crashes, and CEM’s first “good” plan is out of distribution.</p>
+    </div>
+
+    <h2>Error grows with horizon</h2>
+    <p>
+      Nagabandi eq. (3) is the plot PLAN.md asks for next: feed <code>f</code>’s own prediction back in,
+      compare to the true trajectory at H = 1, 2, 5, 10, 20.
+      A 15% dynamics error is almost invisible at H = 1 and obvious at H = 8.
+      Identity is wrong immediately if anything moved.
+    </p>
+    <div id="rollout-demo"></div>
+
+    <h2>Check yourself</h2>
+    <p>Retrieve from memory. Same-length choices, so length is not a hint.</p>
+    <div id="quiz"></div>
+
+    <h2>Do this now</h2>
+    <p>Two artifacts, about two minutes of wall time (CEM parking is the slow one):</p>
+<pre><code>source .venv/Scripts/activate
+python scripts/identity_baseline.py
+python scripts/plan_parking.py --skip-random</code></pre>
+    <p>
+      First command reprints the identity MSE and writes <code>artifacts/identity_baseline.png</code>.
+      Second is the same CEM as Pendulum, with a parking rewind
+      (vehicle pose <em>and</em> <code>time</code>/<code>steps</code>, because highway-env gates actions on the step counter).
+      You want <code>success=True</code>, a path into the stall on
+      <code>artifacts/parking_cem.png</code>, and real transitions in
+      <code>data/cem_parking.npz</code> (the executed actions, not the imagined ones).
+    </p>
+    <p>
+      Do not train a network yet. Next lesson concatenates many CEM parks with the random file, then fits
+      <code>f</code>. One successful episode is not enough data; it is the collector you will reuse.
+    </p>
+
+    <h2>Primary source</h2>
+    <p class="source">
+      Read <a href="https://arxiv.org/pdf/1708.02596">Nagabandi et al. 2018, sections III–IV only</a>
+      (what <code>f</code> outputs, one-step MSE, H-step open-loop validation, why they aggregate MPC data).
+      Stop before the TRPO fine-tuning. Optional north star:
+      <a href="https://arxiv.org/abs/2310.16828">TD-MPC2 §3.1–3.2</a>, encoder and planning only, ignore Q and the policy prior.
+    </p>
+
+    <p>
+      Cheat sheet: <a href="../reference/learned-dynamics.html">learned dynamics</a>.
+      Planner: <a href="../reference/cem-mpc.html">CEM-MPC</a>.
+      Previous: <a href="./0002-cem-true-dynamics.html">CEM with true dynamics</a>.
+    </p>
+
+    <div class="ask">
+      <p>If any of this is fuzzy, ask here. Typical useful questions: “why rewind <code>steps</code>?”, “why is identity MSE so small on x?”, “my CEM crashed, which knob first?”</p>
+    </div>
+
+    <footer>Lesson 0003 · latent parking · Phase 2</footer>
+  </article>
+  <script type="module">
+    import { mountQuiz } from "../assets/quiz.js";
+    import { mountRollout } from "../assets/rollout.js";
+
+    mountRollout(document.getElementById("rollout-demo"), {
+      prompt: "Click. Each step the true car moves +1. Identity stays. Biased f moves +0.85. Watch the crimson error grow.",
+      horizon: 8,
+      action: 1,
+      bias: 0.85,
+    });
+
+    mountQuiz(document.getElementById("quiz"), [
+      {
+        prompt: "The world model f(s, a) predicts:",
+        choices: ["predicts next state", "predicts the reward"],
+        answer: "predicts next state",
+        explain: "s′ kinematics (or later a latent z). Reward is known; we do not need f to output it.",
+      },
+      {
+        prompt: "On the random parking npz, successful parks were:",
+        choices: ["zero of the episodes", "half of the episodes"],
+        answer: "zero of the episodes",
+        explain: "91 finished episodes, all crashes. That is why CEM parks have to be added before training f.",
+      },
+      {
+        prompt: "The identity baseline predicts:",
+        choices: ["no change in state", "action is the next"],
+        answer: "no change in state",
+        explain: "s′ = s. Phase 2 pass #1 is that a trained f beats this on one-step MSE.",
+      },
+      {
+        prompt: "CEM parks belong in the train set because:",
+        choices: ["CEM visits those states", "random already has them"],
+        answer: "CEM visits those states",
+        explain: "Nagabandi §IV-D: mix random with on-policy MPC data so f is queried in-distribution.",
+      },
+      {
+        prompt: "Open-loop error vs horizon is measured by:",
+        choices: ["feeding predictions back", "resetting from the truth"],
+        answer: "feeding predictions back",
+        explain: "Start from a real s, then ŝ ← f(ŝ, a) for H steps. That is the plot that shows where imagination blows up.",
+      },
+    ]);
+  </script>
+</body>
+</html>

@@ -311,6 +311,28 @@ footer {
   padding-left: 1.15rem;
 }
 
+.legend-row {
+  display: flex;
+  gap: 1rem;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+
+.legend-row span::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.35rem;
+  vertical-align: -0.1rem;
+}
+
+.legend-row .true::before { background: #1c1917; }
+.legend-row .ident::before { background: #a8a29e; }
+.legend-row .model::before { background: #9f1239; }
+
 @media print {
   body { background: #fff; }
   .page { padding: 0; max-width: none; }

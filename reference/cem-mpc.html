@@ -11,6 +11,7 @@
     <nav class="crumbs">
       Reference ·
       <a href="../lessons/0002-cem-true-dynamics.html">lesson 0002</a> ·
+      <a href="../lessons/0003-parks-not-only-crashes.html">lesson 0003</a> ·
       <a href="./parking-v0.html">parking-v0</a>
     </nav>
     <header>
@@ -33,11 +34,11 @@ replan from the new real observation</code></pre>
     <table>
       <thead><tr><th>Name</th><th>In this repo</th></tr></thead>
       <tbody>
-        <tr><td>H, horizon</td><td>Pendulum: 20 steps (1 s at dt=0.05). Parking: 8–15.</td></tr>
-        <tr><td>N, samples</td><td>48 sequences per CEM iteration</td></tr>
-        <tr><td>K, elites</td><td>10 (must be ≥ 2)</td></tr>
-        <tr><td>iterations</td><td>5 refits per real step</td></tr>
-        <tr><td>init std</td><td>1.0; reset every real step so search does not freeze</td></tr>
+        <tr><td>H, horizon</td><td>Pendulum: 20 steps (1 s at dt=0.05). Parking: 10 (2 s at 5 Hz).</td></tr>
+        <tr><td>N, samples</td><td>Pendulum 48. Parking 24 (env.step is slower).</td></tr>
+        <tr><td>K, elites</td><td>Pendulum 10. Parking 6 (must be ≥ 2).</td></tr>
+        <tr><td>iterations</td><td>Pendulum 5. Parking 3 refits per real step.</td></tr>
+        <tr><td>init std</td><td>Pendulum 1.0. Parking 0.5. Reset every real step.</td></tr>
       </tbody>
     </table>
 
@@ -54,12 +55,24 @@ replan from the new real observation</code></pre>
       </tbody>
     </table>
 
+    <h2>parking-v0</h2>
+    <table>
+      <thead><tr><th></th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Action</td><td><code>Box(-1, 1, (2,))</code> acceleration, then steering</td></tr>
+        <tr><td>Cost</td><td><code>−reward</code> (goal p-norm + collision −5)</td></tr>
+        <tr><td>Physics state</td><td>ego pose/speed plus object crash flags, <code>time</code>, <code>steps</code></td></tr>
+        <tr><td>Plan with</td><td><code>unwrapped.step</code>, then restore snapshot</td></tr>
+        <tr><td>Crash remainder</td><td>add 5 × leftover steps so an early wall-hit is not “cheap”</td></tr>
+      </tbody>
+    </table>
+
     <h2>Do not</h2>
     <ul>
-      <li>Call <code>reset</code> to evaluate a candidate (new random θ).</li>
-      <li>Plan through the TimeLimit wrapper (imagination spends the real budget).</li>
+      <li>Call <code>reset</code> to evaluate a candidate (new random pose / goal).</li>
+      <li>Plan through the TimeLimit wrapper on Pendulum (imagination spends the real budget).</li>
       <li>Execute the unused Gaussian mean; execute a sequence you scored.</li>
-      <li>Start parking until <code>artifacts/pendulum_cem.png</code> exists and beats random.</li>
+      <li>Rewind the car but not <code>sim.steps</code> (actions apply only when <code>steps % 3 == 0</code>).</li>
     </ul>
 
     <p class="source">

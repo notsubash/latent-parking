@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Learned dynamics · reference</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Reference ·
+      <a href="../lessons/0003-parks-not-only-crashes.html">lesson 0003</a> ·
+      <a href="./cem-mpc.html">CEM-MPC</a> ·
+      <a href="./parking-v0.html">parking-v0</a>
+    </nav>
+    <header>
+      <p class="kicker">Cheat sheet</p>
+      <h1>Learned dynamics</h1>
+      <p class="lede">Phase 2: an MLP that predicts next kinematics, trained on mixed random + true-env CEM parks, judged by error vs horizon.</p>
+    </header>
+
+    <h2>Contract</h2>
+<pre><code>s  = observation  (6,)   x, y, vx, vy, cos_h, sin_h  (scaled)
+a  = action       (2,)   acceleration, steering      in [-1, 1]
+s' = next observation
+f(s, a) → s'             MSE, same scaled space as the npz</code></pre>
+    <p>
+      Nagabandi often predicts the <em>delta</em> <code>s′ − s</code> then adds.
+      This repo starts with absolute <code>s′</code>. Switch to delta only if one-step MSE stalls.
+    </p>
+
+    <h2>Identity baseline</h2>
+    <table>
+      <thead><tr><th></th><th>Value on random_parking.npz</th></tr></thead>
+      <tbody>
+        <tr><td>Predict</td><td><code>s′ = s</code> (ignore a)</td></tr>
+        <tr><td>Overall MSE</td><td>≈ 0.0033 (stored coordinates)</td></tr>
+        <tr><td>Largest terms</td><td><code>vx</code>, <code>vy</code> (~0.008)</td></tr>
+        <tr><td>Successes</td><td>0 / 91 finished episodes</td></tr>
+      </tbody>
+    </table>
+    <p>A trained <code>f</code> must beat this on held-out one-step preds. Beating it on crash data only is not parking.</p>
+
+    <h2>Open-loop rollout</h2>
+<pre><code>ŝ ← s_t
+for h in 1..H:
+    ŝ ← f(ŝ, a_{t+h-1})     # feed prediction back; do not reset to truth
+    error(h) = ||ŝ − s_{t+h}||²</code></pre>
+    <p>Plot mean error at H = 1, 2, 5, 10, 20. That is Nagabandi eq. (3) and the PLAN.md diagnostic.</p>
+
+    <h2>Data mix</h2>
+    <table>
+      <thead><tr><th>File</th><th>Policy</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>data/random_parking.npz</code></td><td>uniform actions</td><td>Crashes, walls, idle. Coverage.</td></tr>
+        <tr><td><code>data/cem_parking.npz</code></td><td>true-env CEM</td><td>Successful parks the planner will query.</td></tr>
+      </tbody>
+    </table>
+    <p>Save executed <code>(s, a, s′)</code> only. Imagined CEM prefixes are not training rows.</p>
+
+    <h2>Parking CEM rewind</h2>
+    <p>Copy and restore: ego <code>position, heading, speed, action, crashed, hit, impact</code>, every <code>road.objects</code> crash flag, and <code>sim.time</code> / <code>sim.steps</code>. Missing the counters desyncs <code>_simulate</code> (action applied when <code>steps % 3 == 0</code>).</p>
+
+    <h2>Do not</h2>
+    <ul>
+      <li>Train <code>f</code> on random-only and call Phase 2 done.</li>
+      <li>Decode pixels or add a JEPA encoder (Phase 4).</li>
+      <li>Use identity MSE in meters against a model trained in scaled units.</li>
+      <li>Score CEM with imagined transitions written into the npz.</li>
+    </ul>
+
+    <p class="source">
+      Sources:
+      <a href="https://arxiv.org/abs/1708.02596">Nagabandi et al. 2018</a>,
+      <a href="https://arxiv.org/abs/2310.16828">Hansen et al., TD-MPC2 (planning only)</a>,
+      <a href="http://incompleteideas.net/book/RLbook2020.pdf">Sutton &amp; Barto §8.1</a>.
+    </p>
+    <footer>Reference · latent parking</footer>
+  </article>
+</body>
+</html>

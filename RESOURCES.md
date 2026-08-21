@@ -22,6 +22,10 @@
   Section 2 and Appendix A: vanilla CEM-MPC (sample action sequences, elite, refit diagonal Gaussian, shift mean, receding horizon). Use for: the planner in `scripts/cem.py`. Skip iCEM extras until vanilla parks.
 - [de Boer, Kroese, Mannor, Rubinstein, “A Tutorial on the Cross-Entropy Method” (2005)](https://link.springer.com/article/10.1007/s10479-005-5724-z)
   Original CEM as elite-refit of a sampling distribution. Use for: why it is called cross-entropy, not for the MPC wiring.
+- [Nagabandi, Kahn, Fearing, Levine, “Neural Network Dynamics for Model-Based Deep RL with Model-Free Fine-Tuning” (2018)](https://arxiv.org/abs/1708.02596)
+  MLP `f(s, a)` predicts next state (they use a delta), one-step MSE, H-step open-loop validation, then MPC; §IV-D aggregates random data with on-policy MPC rollouts. Use for: Phase 2. Primary source for lesson 0003. Stop before TRPO fine-tuning.
+- [Hansen, Su, Wang, TD-MPC2 (2024)](https://arxiv.org/abs/2310.16828) · [project page](https://tdmpc2.com)
+  Latent dynamics + MPC. Use for: “what is predicted, how is it used to plan.” Skip Q, policy prior, and SimNorm until Phase 4–5.
 - [HighwayEnv `parking_env.py` (source)](https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/envs/parking_env.py)
   Ground truth for terminate/truncate, success threshold, and the GoalEnv dict. Use for: any claim about episode length or reward.
 
@@ -36,6 +40,7 @@
 
 ## Gaps
 
-- No single canonical notebook that collects `parking-v0` transitions the way this repo will. Lesson 0001 plus `scripts/collect_random.py` fills that.
+- No single canonical notebook that collects `parking-v0` transitions the way this repo will. Lesson 0001 plus `scripts/collect_random.py` fills the random half; `scripts/plan_parking.py` fills the CEM half.
 - Sutton & Barto ch. 1–3 do not mention goal-conditioned dict observations. Keep Gymnasium + highway-env next to the book so the mapping stays explicit.
 - Sutton & Barto ch. 8 never names CEM. Pair 8.1 with Pinneri Appendix A (or de Boer 2005) when teaching the optimizer.
+- Nagabandi’s MuJoCo random-only models can walk; parking-v0 random-only never parks. Do not quote their “random is enough” result as if it applied to this lot.
