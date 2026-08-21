@@ -1,0 +1,14 @@
+---
+description: Keep GLOSSARY.md updated whenever a lesson introduces terms
+alwaysApply: true
+---
+
+# Glossary
+
+When you add or revise a lesson, update `GLOSSARY.md` at the repo root in the same session. Do not wait to be asked.
+
+- Follow the teach skill `GLOSSARY-FORMAT.md`: `**Term**:` then one or two ELI5 sentences, then `_Avoid_:`.
+- Add every new named concept the lesson used. Group under the existing headings when they fit.
+- Link the lesson (and any new reference page) to `GLOSSARY.md`.
+- Use glossary words in the lesson; do not invent a second name for the same idea.
+- Do not label teaching copy with PLAN.md phase numbers.

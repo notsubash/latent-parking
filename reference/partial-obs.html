@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Partial observations · reference</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      Reference ·
+      <a href="../lessons/0004-pose-is-not-state.html">lesson 0004</a> ·
+      <a href="./learned-dynamics.html">learned dynamics</a> ·
+      <a href="./parking-v0.html">parking-v0</a> ·
+      <a href="../GLOSSARY.md">glossary</a>
+    </nav>
+    <header>
+      <p class="kicker">Cheat sheet</p>
+      <h1>Partial observations</h1>
+      <p class="lede">Why <code>vx, vy</code> are state, how to hide them, and how to score the damage.</p>
+    </header>
+
+    <h2>Vocabulary</h2>
+    <table>
+      <thead><tr><th>Term</th><th>In this repo</th></tr></thead>
+      <tbody>
+        <tr><td>State</td><td>Bicycle: pose + speed. Complete enough that <code>s′ = f(s, a)</code>.</td></tr>
+        <tr><td>Observation</td><td>What <code>f</code> is allowed to see. May omit speed.</td></tr>
+        <tr><td>Fully observed</td><td>Default six-vector <code>x, y, vx, vy, cos_h, sin_h</code>.</td></tr>
+        <tr><td>Partially observed</td><td>Pose-only <code>x, y, cos_h, sin_h</code>. Same pose, many speeds.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Source:
+      <a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html#states-and-observations">Spinning Up, States and Observations</a>.
+      The name POMDP:
+      <a href="https://www.sciencedirect.com/science/article/pii/S000437029800023X">Kaelbling, Littman, Cassandra 1998</a>.
+    </p>
+
+    <h2>Bicycle (why speed is not optional)</h2>
+<pre><code>beta = arctan(0.5 * tan(steering))
+v    = speed * [cos(heading+beta), sin(heading+beta)]
+position += v * dt
+heading  += speed * sin(beta) / (LENGTH/2) * dt
+speed    += acceleration * dt</code></pre>
+    <p>
+      <code>dt</code> is 1/15 s inside physics, 0.2 s per action at 5 Hz.
+      Stored <code>x, y</code> are meters/100. Stored <code>vx, vy</code> are (m/s)/5.
+    </p>
+
+    <h2>Masks</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Input to f</th><th>Predicts</th></tr></thead>
+      <tbody>
+        <tr><td><code>full</code></td><td>six-vector + action</td><td>next six-vector</td></tr>
+        <tr><td><code>pose</code></td><td><code>x, y, cos_h, sin_h</code> + action</td><td>next pose</td></tr>
+        <tr><td><code>stack</code></td><td>two poses + action</td><td>next pose</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Stack is meant to recover <code>Δpose / 0.2 s</code>.
+      In stored units the delta is tiny, so the curve often hugs pose-only.
+      That is still a hand-built history, not a learned <code>z</code>.
+    </p>
+
+    <h2>Fair score</h2>
+<pre><code>pose_mse = mean((x, y, cos_h, sin_h) error²)
+open-loop: ŝ ← f(ŝ, a) for H = 1, 2, 5, 10, 20</code></pre>
+    <p>
+      Do not compare overall MSE across masks. Dropping <code>vx, vy</code> removes the largest identity terms.
+      Full one-step pose MSE must beat identity. Pose-only should be worse by H=10.
+    </p>
+
+    <h2>Do not</h2>
+    <ul>
+      <li>Hold out the only CEM episode (too few). Keep CEM in train; score curves on random episodes.</li>
+      <li>Call a lower pose-only training loss a win.</li>
+      <li>Replace the stack with a GRU until the stack plot exists.</li>
+      <li>Start pixels. Missing velocity is the kinematic version of missing the rest of the world.</li>
+    </ul>
+
+    <p class="source">
+      Sources:
+      <a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html#states-and-observations">Spinning Up</a>,
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/vehicle/kinematics.py">Vehicle.step</a>,
+      <a href="https://arxiv.org/abs/1507.06527">Hausknecht &amp; Stone, DRQN</a>.
+    </p>
+    <footer>Reference · latent parking</footer>
+  </article>
+</body>
+</html>

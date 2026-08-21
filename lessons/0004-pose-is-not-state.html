@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>0004 · Pose is not the state</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <article class="page">
+    <nav class="crumbs">
+      <a href="./0003-parks-not-only-crashes.html">lesson 0003</a> ·
+      <a href="../reference/partial-obs.html">partial obs</a> ·
+      <a href="../reference/learned-dynamics.html">learned dynamics</a> ·
+      <a href="../GLOSSARY.md">glossary</a> ·
+      <a href="../MISSION.md">mission</a>
+    </nav>
+    <header>
+      <p class="kicker">Lesson 0004 · Hidden velocity</p>
+      <h1>Pose is not the state</h1>
+      <p class="lede">A parking stall is a pose. The bicycle that gets there is a pose <em>plus</em> a speed. Drop <code>vx, vy</code> and the same MLP is guessing which of two cars it is watching.</p>
+    </header>
+
+    <div class="mission">
+      <p>Mission hook: later you abort when imagined rollouts disagree. Disagreement is interesting only after you have seen imagination fail for a reason you can name. Today that reason is missing velocity.</p>
+    </div>
+
+    <h2>State vs observation</h2>
+    <p>
+      <a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html#states-and-observations">Spinning Up</a>
+      calls a <em>state</em> a complete description of the world, and an <em>observation</em> a partial one.
+      When the agent sees the full state, the environment is fully observed.
+      When it does not, it is partially observed.
+      Transitions in an MDP depend on the latest state and action only
+      (the Markov property; same page, “Formalism”).
+    </p>
+    <p>
+      Default <code>parking-v0</code> kinematics
+      <code>x, y, vx, vy, cos_h, sin_h</code> are enough for the bicycle:
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/vehicle/kinematics.py"><code>Vehicle.step</code></a>
+      does <code>position += velocity * dt</code>, then updates heading and speed from steering and throttle.
+      Hide <code>vx, vy</code> and two egos that share a pose are the same observation.
+      Same action, different next <code>x</code>. That is no longer Markov in the features you kept.
+    </p>
+
+    <h2>Two cars, one pose</h2>
+    <p>Throttle and steering are zero. Only the hidden speed differs. Click.</p>
+    <div id="twins-demo"></div>
+
+    <h2>A cheap patch, not the product</h2>
+    <p>
+      Stack the last two poses. The delta over <code>dt = 0.2 s</code> is a velocity estimate in meters, but stored <code>x</code> is meters/100, so consecutive poses differ by about 0.01 while heading is order 1.
+      An MLP can ignore that history.
+      <a href="https://arxiv.org/abs/1507.06527">Hausknecht &amp; Stone, DRQN</a>
+      treat DQN’s frame stack as a finite history, then replace it with a recurrent net.
+      We stack. No GRU yet.
+      Expect the stack curve to sit near pose-only, not near full.
+      That failure is the point: a hand-built memory of four numbers is not a latent you can distrust.
+    </p>
+    <div class="callout">
+      <p><strong>Do not trust overall MSE.</strong>
+      Identity error is mostly <code>vx, vy</code>.
+      A pose-only head never predicts those, so its raw loss can look smaller while open-loop
+      <em>pose</em> error is worse. Compare <code>(x, y, cos_h, sin_h)</code> vs horizon.</p>
+    </div>
+
+    <h2>Check yourself</h2>
+    <p>Retrieve from memory. Same-length choices, so length is not a hint.</p>
+    <div id="quiz"></div>
+
+    <h2>Do this now</h2>
+    <p>
+      One script trains three heads on the mixed npz: full six-vector, pose-only, pose stacked twice.
+      CEM episodes stay in train (too few to hold out). The curves are scored on held-out random episodes.
+    </p>
+<pre><code>source .venv/Scripts/activate
+python scripts/train_dynamics.py</code></pre>
+    <p>
+      You want <code>full</code> one-step pose MSE below identity, <code>pose</code> open-loop error above <code>full</code> by horizon 10,
+      and <code>stack</code> near <code>pose</code> rather than <code>full</code> (the history is there; the scale hides it).
+      Plot: <code>artifacts/pose_vs_full_horizon.png</code>.
+      The CEM overlay is one park sitting in 8000 random steps, so even <code>full</code> can look drunk there. Trust the horizon plot.
+    </p>
+
+    <h2>Primary source</h2>
+    <p class="source">
+      Read <a href="https://spinningup.openai.com/en/latest/spinningup/rl_intro.html#states-and-observations">Spinning Up, “States and Observations”</a>
+      (one screen). Then the bicycle update in
+      <a href="https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/vehicle/kinematics.py">highway-env <code>Vehicle.step</code></a>.
+      Optional name for the setting:
+      <a href="https://www.sciencedirect.com/science/article/pii/S000437029800023X">Kaelbling, Littman, Cassandra 1998</a> on POMDPs.
+    </p>
+
+    <p>
+      Cheat sheet: <a href="../reference/partial-obs.html">partial observations</a>.
+      Glossary: <a href="../GLOSSARY.md">GLOSSARY.md</a>.
+      Previous: <a href="./0003-parks-not-only-crashes.html">parks, not only crashes</a>.
+    </p>
+
+    <div class="ask">
+      <p>If any of this is fuzzy, ask here. Typical useful questions: “why is pose MSE the fair number?”, “my stack is worse than pose, what broke?”, “when do we stop stacking and learn a <code>z</code>?”</p>
+    </div>
+
+    <footer>Lesson 0004 · latent parking</footer>
+  </article>
+  <script type="module">
+    import { mountQuiz } from "../assets/quiz.js";
+    import { mountTwins } from "../assets/twins.js";
+
+    mountTwins(document.getElementById("twins-demo"), {
+      prompt: "Same (x, heading). Opposite hidden speeds. Zero throttle. A pose-only f cannot tell them apart.",
+    });
+
+    mountQuiz(document.getElementById("quiz"), [
+      {
+        prompt: "The Markov property says the next state depends on:",
+        choices: ["last state-action pair", "whole past trajectory"],
+        answer: "last state-action pair",
+        explain: "Spinning Up: transitions depend on the most recent state and action, not the rest of the tape.",
+      },
+      {
+        prompt: "Hide vx and vy. The observation is:",
+        choices: ["partially observed", "observed completely"],
+        answer: "partially observed",
+        explain: "Pose is shared by many speeds. The bicycle state still has velocity; you just cannot see it.",
+      },
+      {
+        prompt: "Bicycle next position uses:",
+        choices: ["ego velocity vector", "goal stall position"],
+        answer: "ego velocity vector",
+        explain: "Vehicle.step: position += v * dt. The stall is the goal, not the physics.",
+      },
+      {
+        prompt: "Two stacked poses mainly recover:",
+        choices: ["speed via the delta", "which stall is goal"],
+        answer: "speed via the delta",
+        explain: "Δpose / 0.2 s is a velocity estimate. That is DQN-style history, not a goal detector.",
+      },
+      {
+        prompt: "Compare the two f heads on:",
+        choices: ["pose error vs horizon", "the raw training loss"],
+        answer: "pose error vs horizon",
+        explain: "Dropping vx, vy shrinks overall MSE because those were the large identity terms. Pose error is the parking-relevant number.",
+      },
+    ]);
+  </script>
+</body>
+</html>

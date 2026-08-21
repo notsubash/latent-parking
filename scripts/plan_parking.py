@@ -1,8 +1,8 @@
 """Receding-horizon CEM on parking-v0, using env.step as the world model.
 
-This is still cheating: true bicycle-model physics, no network. Phase 2 needs
-those parks in the dataset. Random actions never succeed (see data/random_parking.npz),
-so an f trained only on that npz has never seen a slow reverse into a stall.
+This is still cheating: true bicycle-model physics, no network. Random actions
+never succeed (see data/random_parking.npz), so an f trained only on that npz
+has never seen a slow reverse into a stall.
 
 Cost is -reward: weighted distance of achieved_goal to desired_goal, plus the
 env's collision penalty. Plan 10 steps, execute 1, replan. Same optimizer as
@@ -236,7 +236,7 @@ def run_episode(env, *, use_cem: bool, seed: int) -> dict:
 
 
 def plot_episode(result: dict, path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    fig, ax = plt.subplots(figsize=(8.0, 4.6), layout="constrained")
     ax.plot(result["xs"], result["ys"], color="#9f1239", lw=1.4, label="ego")
     ax.scatter(result["xs"][0], result["ys"][0], c="#1c1917", s=28, zorder=3, label="start")
     gx, gy = result["goal_xy"]
@@ -249,11 +249,41 @@ def plot_episode(result: dict, path: Path) -> None:
         f"return={result['return']:.1f}"
     )
     ax.set_title(title)
-    ax.legend(loc="best", frameon=False)
-    fig.tight_layout()
+    # loc="best" sits on the path in an empty lot.
+    ax.legend(loc="center left", bbox_to_anchor=(1.04, 0.5), frameon=False)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=140)
     plt.close(fig)
+
+
+def concat_transitions(parts: list[dict]) -> dict:
+    """Stack episodes and renumber episode_id. Metadata comes from the first."""
+    step_keys = (
+        "observation",
+        "achieved_goal",
+        "desired_goal",
+        "action",
+        "next_observation",
+        "next_achieved_goal",
+        "reward",
+        "terminated",
+        "truncated",
+        "crashed",
+        "is_success",
+        "episode_id",
+    )
+    offset = 0
+    shifted = []
+    for part in parts:
+        row = dict(part)
+        n = len(row["reward"])
+        row["episode_id"] = np.full(n, offset, dtype=np.int32)
+        offset += 1
+        shifted.append(row)
+    out = {key: np.concatenate([p[key] for p in shifted], axis=0) for key in step_keys}
+    for key in ("feature_names", "scales", "action_names", "policy_frequency", "duration", "policy"):
+        out[key] = parts[0][key]
+    return out
 
 
 def _rewind_check() -> None:
@@ -285,6 +315,12 @@ def main() -> None:
     parser.add_argument("--skip-random", action="store_true")
     parser.add_argument("--skip-check", action="store_true")
     parser.add_argument(
+        "--episodes",
+        type=int,
+        default=1,
+        help="How many CEM parks to collect. Seeds are seed, seed+1, …",
+    )
+    parser.add_argument(
         "--save-transitions",
         type=Path,
         default=Path(__file__).resolve().parent.parent / "data" / "cem_parking.npz",
@@ -297,6 +333,9 @@ def main() -> None:
 
     env = gym.make("parking-v0")
     try:
+        # Several CEM parks already take minutes. Skip the random baseline then.
+        if args.episodes > 1:
+            args.skip_random = True
         if not args.skip_random:
             random_result = run_episode(env, use_cem=False, seed=args.seed)
             print(
@@ -304,7 +343,18 @@ def main() -> None:
                 f"success={random_result['success']} crashed={random_result['crashed']}  "
                 f"steps={random_result['steps']}"
             )
-        cem_result = run_episode(env, use_cem=True, seed=args.seed)
+        cem_parts = []
+        cem_result = None
+        for i in range(args.episodes):
+            seed = args.seed + i
+            result = run_episode(env, use_cem=True, seed=seed)
+            cem_parts.append(result["transitions"])
+            cem_result = result
+            print(
+                f"cem seed={seed}  return={result['return']:.1f}  "
+                f"success={result['success']} crashed={result['crashed']}  "
+                f"steps={result['steps']}"
+            )
     finally:
         env.close()
 
@@ -316,17 +366,17 @@ def main() -> None:
     plot_episode(cem_result, args.out)
     print("saved", args.out)
     args.save_transitions.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(args.save_transitions, **cem_result["transitions"])
+    saved = concat_transitions(cem_parts)
+    np.savez_compressed(args.save_transitions, **saved)
+    n_ok = int(saved["is_success"].sum())
     print(
         "saved",
         args.save_transitions,
-        f"transitions={len(cem_result['transitions']['reward'])} "
-        f"(real steps only; success={cem_result['success']})",
+        f"transitions={len(saved['reward'])} "
+        f"episodes={args.episodes} success_flags={n_ok} "
+        "(real steps only)",
     )
-    print(
-        "Phase 1 parking / Phase 2 collector: CEM should reach the stall "
-        "(is_success True) or at least not crash in a few steps like random."
-    )
+    print("CEM should reach the stall (is_success True) or at least not crash like random.")
 
 
 if __name__ == "__main__":

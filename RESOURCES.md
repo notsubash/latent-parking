@@ -13,7 +13,13 @@
 - [highway-env: Observations](https://highway-env.farama.org/observations/)
   Feature names (`x, y, vx, vy, cos_h, sin_h`) and `KinematicsGoalObservation`. Use for: decoding saved arrays back into meters.
 - [OpenAI Spinning Up: Part 1, Key Concepts in RL](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html)
-  Agent, environment, observation vs state, action space, trajectory, reward/return. Use for: vocabulary. Skip value functions and Bellman until they show up in a lesson.
+  Agent, environment, observation vs state, action space, trajectory, reward/return. Use for: vocabulary, and for lesson 0004 the “States and Observations” / Markov (Formalism) paragraphs. Skip value functions and Bellman until they show up in a lesson.
+- [Kaelbling, Littman, Cassandra, “Planning and acting in partially observable stochastic domains” (1998)](https://www.sciencedirect.com/science/article/pii/S000437029800023X)
+  The POMDP name: observations that do not identify the state. Use for: lesson 0004 vocabulary only. Do not implement belief-space DP.
+- [Hausknecht & Stone, “Deep Recurrent Q-Learning for Partially Observable MDPs” (2015)](https://arxiv.org/abs/1507.06527)
+  DQN’s frame stack is a finite history; an LSTM is the next patch. Use for: why `scripts/train_dynamics.py` stacks two poses and skips a GRU.
+- [HighwayEnv `Vehicle.step` (source)](https://github.com/Farama-Foundation/HighwayEnv/blob/master/highway_env/vehicle/kinematics.py)
+  Bicycle update: `position += velocity * dt`. Use for: any claim that pose-only is not Markov.
 - [Sutton & Barto, *Reinforcement Learning: An Introduction* (2nd ed.)](http://incompleteideas.net/book/the-book-2nd.html)
   Canonical textbook, PDF hosted by the authors. Use for: ch. 1–3 after the gym loop feels boring; **ch. 8.1 only** when implementing planning (model, sample model, planning as model → policy). Stop before Dyna and MCTS until a later lesson.
 - [Gymnasium: Pendulum-v1](https://gymnasium.farama.org/environments/classic_control/pendulum/)

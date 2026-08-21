@@ -281,6 +281,7 @@ footer {
   border-style: dashed;
 }
 
+.widget .cem-canvas,
 .cem-demo .cem-canvas {
   display: block;
   width: 100%;
@@ -332,6 +333,8 @@ footer {
 .legend-row .true::before { background: #1c1917; }
 .legend-row .ident::before { background: #a8a29e; }
 .legend-row .model::before { background: #9f1239; }
+.legend-row .fwd::before { background: #14532d; }
+.legend-row .rev::before { background: #9f1239; }
 
 @media print {
   body { background: #fff; }
